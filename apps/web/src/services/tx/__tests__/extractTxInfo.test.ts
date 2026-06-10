@@ -1,4 +1,5 @@
 import type { TransactionDetails } from '@safe-global/store/gateway/AUTO_GENERATED/transactions'
+import { generatePreValidatedSignature } from '@safe-global/protocol-kit'
 import extractTxInfo from '../extractTxInfo'
 
 describe('extractTxInfo', () => {
@@ -216,6 +217,48 @@ describe('extractTxInfo', () => {
         to: '0x9008D19f58AAbD9eD0D60971565AA8510560ab41',
         value: '0',
       },
+    })
+  })
+
+  it('should convert confirmations without an off-chain signature (e.g. on-chain approveHash) into pre-validated signatures', () => {
+    // CGW returns `signature: null` for confirmations created via on-chain `approveHash`.
+    // Including them with `''` data inflates `safeTx.signatures.size` while contributing
+    // zero bytes to the encoded blob, triggering GS020 during gas estimation. As
+    // pre-validated signatures (v=1, r=signer) they count toward the threshold and
+    // validate on-chain via `approvedHashes`.
+    const txDetails = {
+      txData: {
+        operation: 'CALL',
+        to: { value: '0x1234567890123456789012345678901234567890' },
+        value: '0',
+        data: '0x',
+      },
+      txInfo: { type: 'Custom' },
+      detailedExecutionInfo: {
+        type: 'MULTISIG',
+        baseGas: '0',
+        gasPrice: '0',
+        safeTxGas: '0',
+        gasToken: '0x0000000000000000000000000000000000000000',
+        nonce: 0,
+        refundReceiver: { type: 'Address', value: '0x0000000000000000000000000000000000000000' },
+        confirmations: [
+          { signer: { value: '0xaaaa000000000000000000000000000000000001' }, signature: '0xabc' },
+          { signer: { value: '0xbbbb000000000000000000000000000000000002' }, signature: null },
+          { signer: { value: '0xcccc000000000000000000000000000000000003' }, signature: '' },
+        ],
+      },
+    } as unknown as TransactionDetails
+
+    const { signatures } = extractTxInfo(txDetails)
+    expect(signatures).toEqual({
+      '0xaaaa000000000000000000000000000000000001': '0xabc',
+      '0xbbbb000000000000000000000000000000000002': generatePreValidatedSignature(
+        '0xbbbb000000000000000000000000000000000002',
+      ).data,
+      '0xcccc000000000000000000000000000000000003': generatePreValidatedSignature(
+        '0xcccc000000000000000000000000000000000003',
+      ).data,
     })
   })
 })

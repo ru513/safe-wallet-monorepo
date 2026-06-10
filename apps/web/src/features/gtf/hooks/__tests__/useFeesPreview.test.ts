@@ -12,7 +12,9 @@ describe('useFeesPreview', () => {
   })
 
   it('returns loading state when safeTx is null', () => {
-    jest.spyOn(useGasLimitModule, 'default').mockReturnValue({ gasLimit: undefined, gasLimitLoading: false })
+    jest
+      .spyOn(useGasLimitModule, 'default')
+      .mockReturnValue({ gasLimit: undefined, gasLimitLoading: false, isUnderSigned: false })
     jest.spyOn(useGasPriceModule, 'default').mockReturnValue([undefined, undefined, false] as never)
     jest.spyOn(useChainsModule, 'useCurrentChain').mockReturnValue(undefined)
 
@@ -22,7 +24,9 @@ describe('useFeesPreview', () => {
   })
 
   it('returns loading state when gas limit is loading', () => {
-    jest.spyOn(useGasLimitModule, 'default').mockReturnValue({ gasLimit: undefined, gasLimitLoading: true })
+    jest
+      .spyOn(useGasLimitModule, 'default')
+      .mockReturnValue({ gasLimit: undefined, gasLimitLoading: true, isUnderSigned: false })
     jest.spyOn(useGasPriceModule, 'default').mockReturnValue([undefined, undefined, false] as never)
     jest.spyOn(useChainsModule, 'useCurrentChain').mockReturnValue(chainBuilder().build())
 
@@ -32,7 +36,9 @@ describe('useFeesPreview', () => {
   })
 
   it('returns loading state when gas price is loading', () => {
-    jest.spyOn(useGasLimitModule, 'default').mockReturnValue({ gasLimit: BigInt(21000), gasLimitLoading: false })
+    jest
+      .spyOn(useGasLimitModule, 'default')
+      .mockReturnValue({ gasLimit: BigInt(21000), gasLimitLoading: false, isUnderSigned: false })
     jest.spyOn(useGasPriceModule, 'default').mockReturnValue([undefined, undefined, true] as never)
     jest.spyOn(useChainsModule, 'useCurrentChain').mockReturnValue(chainBuilder().build())
 
@@ -46,7 +52,9 @@ describe('useFeesPreview', () => {
       .with({ nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18, logoUri: '' } })
       .build()
 
-    jest.spyOn(useGasLimitModule, 'default').mockReturnValue({ gasLimit: BigInt(21000), gasLimitLoading: false })
+    jest
+      .spyOn(useGasLimitModule, 'default')
+      .mockReturnValue({ gasLimit: BigInt(21000), gasLimitLoading: false, isUnderSigned: false })
     jest
       .spyOn(useGasPriceModule, 'default')
       .mockReturnValue([
@@ -64,7 +72,9 @@ describe('useFeesPreview', () => {
   })
 
   it('falls back to ETH when chain symbol is unavailable', () => {
-    jest.spyOn(useGasLimitModule, 'default').mockReturnValue({ gasLimit: undefined, gasLimitLoading: false })
+    jest
+      .spyOn(useGasLimitModule, 'default')
+      .mockReturnValue({ gasLimit: undefined, gasLimitLoading: false, isUnderSigned: false })
     jest.spyOn(useGasPriceModule, 'default').mockReturnValue([undefined, undefined, false] as never)
     jest.spyOn(useChainsModule, 'useCurrentChain').mockReturnValue(undefined)
 
@@ -76,9 +86,12 @@ describe('useFeesPreview', () => {
   it('returns error when gas limit estimation fails', () => {
     const chain = chainBuilder().build()
 
-    jest
-      .spyOn(useGasLimitModule, 'default')
-      .mockReturnValue({ gasLimit: undefined, gasLimitError: new Error('execution reverted'), gasLimitLoading: false })
+    jest.spyOn(useGasLimitModule, 'default').mockReturnValue({
+      gasLimit: undefined,
+      gasLimitError: new Error('execution reverted'),
+      gasLimitLoading: false,
+      isUnderSigned: false,
+    })
     jest
       .spyOn(useGasPriceModule, 'default')
       .mockReturnValue([
@@ -99,7 +112,9 @@ describe('useFeesPreview', () => {
   it('returns error when gas price fetch fails', () => {
     const chain = chainBuilder().build()
 
-    jest.spyOn(useGasLimitModule, 'default').mockReturnValue({ gasLimit: BigInt(21000), gasLimitLoading: false })
+    jest
+      .spyOn(useGasLimitModule, 'default')
+      .mockReturnValue({ gasLimit: BigInt(21000), gasLimitLoading: false, isUnderSigned: false })
     jest
       .spyOn(useGasPriceModule, 'default')
       .mockReturnValue([undefined, new Error('oracle unavailable'), false] as never)
@@ -114,7 +129,9 @@ describe('useFeesPreview', () => {
   it('returns error when wallet is disconnected (gasLimit undefined, not loading)', () => {
     const chain = chainBuilder().build()
 
-    jest.spyOn(useGasLimitModule, 'default').mockReturnValue({ gasLimit: undefined, gasLimitLoading: false })
+    jest
+      .spyOn(useGasLimitModule, 'default')
+      .mockReturnValue({ gasLimit: undefined, gasLimitLoading: false, isUnderSigned: false })
     jest
       .spyOn(useGasPriceModule, 'default')
       .mockReturnValue([

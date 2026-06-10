@@ -46,7 +46,12 @@ describe('useGasLimit', () => {
   it('should return undefined for undefined safeTx', async () => {
     const { result } = renderHook(() => useGasLimit())
     await waitFor(async () => {
-      expect(result.current).toEqual({ gasLimit: undefined, gasLimitLoading: false, gasLimitError: undefined })
+      expect(result.current).toEqual({
+        gasLimit: undefined,
+        gasLimitLoading: false,
+        gasLimitError: undefined,
+        isUnderSigned: false,
+      })
     })
   })
 
@@ -66,7 +71,12 @@ describe('useGasLimit', () => {
 
     const { result } = renderHook(() => useGasLimit(safeTx))
     await waitFor(async () => {
-      expect(result.current).toEqual({ gasLimit: undefined, gasLimitLoading: false, gasLimitError: undefined })
+      expect(result.current).toEqual({
+        gasLimit: undefined,
+        gasLimitLoading: false,
+        gasLimitError: undefined,
+        isUnderSigned: false,
+      })
     })
   })
 
@@ -78,7 +88,12 @@ describe('useGasLimit', () => {
 
     const { result } = renderHook(() => useGasLimit(safeTx))
     await waitFor(async () => {
-      expect(result.current).toEqual({ gasLimit: 50_000n, gasLimitLoading: false, gasLimitError: undefined })
+      expect(result.current).toEqual({
+        gasLimit: 50_000n,
+        gasLimitLoading: false,
+        gasLimitError: undefined,
+        isUnderSigned: false,
+      })
     })
   })
 
@@ -111,13 +126,80 @@ describe('useGasLimit', () => {
 
     const { result } = renderHook(() => useGasLimit(safeTx))
     await waitFor(async () => {
-      expect(result.current).toEqual({ gasLimit: 50_000n, gasLimitLoading: false, gasLimitError: undefined })
+      expect(result.current).toEqual({
+        gasLimit: 50_000n,
+        gasLimitLoading: false,
+        gasLimitError: undefined,
+        isUnderSigned: false,
+      })
     })
     expect(mockWeb3.estimateGas).toHaveBeenCalledWith({
       to: safeInfo.address.value,
       from: walletAddress,
       data: expectedCallData,
     })
+  })
+
+  it('should skip estimation and flag isUnderSigned when below threshold', async () => {
+    // 2/N Safe with no real signatures yet: encodeSignatures only ever pads by one
+    // pre-validated sig, so the encoded blob would be 65 bytes vs threshold * 65 = 130.
+    // execTransaction would revert with GS020 — skip the call and surface the state.
+    const safeWithThreshold2 = safeInfoBuilder().with({ threshold: 2 }).build()
+    jest.spyOn(useSafeInfo, 'default').mockReturnValue({
+      safe: { ...safeWithThreshold2, deployed: true },
+      safeAddress: safeWithThreshold2.address.value,
+      safeLoaded: true,
+      safeLoading: false,
+      safeError: undefined,
+    })
+
+    const safeTx = createMockSafeTransaction({
+      data: '0x00',
+      to: faker.finance.ethereumAddress(),
+    })
+
+    const { result } = renderHook(() => useGasLimit(safeTx))
+    await waitFor(async () => {
+      expect(result.current).toEqual({
+        gasLimit: undefined,
+        gasLimitLoading: false,
+        gasLimitError: undefined,
+        isUnderSigned: true,
+      })
+    })
+    expect(mockWeb3.estimateGas).not.toHaveBeenCalled()
+  })
+
+  it('should estimate when the threshold is met via on-chain approveHash confirmations', async () => {
+    // 2/N Safe where both confirmations were recorded via on-chain `approveHash`:
+    // extractTxInfo represents them as pre-validated signatures, so the tx is NOT
+    // under-signed and estimation succeeds (checkNSignatures passes via approvedHashes).
+    const safeWithThreshold2 = safeInfoBuilder().with({ threshold: 2 }).build()
+    jest.spyOn(useSafeInfo, 'default').mockReturnValue({
+      safe: { ...safeWithThreshold2, deployed: true },
+      safeAddress: safeWithThreshold2.address.value,
+      safeLoaded: true,
+      safeLoading: false,
+      safeError: undefined,
+    })
+
+    const safeTx = createMockSafeTransaction({
+      data: '0x00',
+      to: faker.finance.ethereumAddress(),
+    })
+    safeTx.addSignature(generatePreValidatedSignature(prevSignerAddress))
+    safeTx.addSignature(generatePreValidatedSignature(faker.finance.ethereumAddress()))
+
+    const { result } = renderHook(() => useGasLimit(safeTx))
+    await waitFor(async () => {
+      expect(result.current).toEqual({
+        gasLimit: 50_000n,
+        gasLimitLoading: false,
+        gasLimitError: undefined,
+        isUnderSigned: false,
+      })
+    })
+    expect(mockWeb3.estimateGas).toHaveBeenCalledTimes(1)
   })
 
   it('should add a prevalidated signature if a signature is missing', async () => {
@@ -141,7 +223,12 @@ describe('useGasLimit', () => {
 
     const { result } = renderHook(() => useGasLimit(safeTx))
     await waitFor(async () => {
-      expect(result.current).toEqual({ gasLimit: 50_000n, gasLimitLoading: false, gasLimitError: undefined })
+      expect(result.current).toEqual({
+        gasLimit: 50_000n,
+        gasLimitLoading: false,
+        gasLimitError: undefined,
+        isUnderSigned: false,
+      })
     })
     expect(mockWeb3.estimateGas).toHaveBeenCalledWith({
       to: safeInfo.address.value,

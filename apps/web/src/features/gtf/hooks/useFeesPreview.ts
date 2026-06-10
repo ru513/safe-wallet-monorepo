@@ -9,16 +9,18 @@ export type FeesPreviewData = {
   gasFee: { label: string; amount: string; currency: string }
   loading?: boolean
   error?: boolean
+  pending?: boolean
 }
 
 export const useFeesPreview = (): FeesPreviewData => {
   const { safeTx } = useContext(SafeTxContext)
-  const { gasLimit, gasLimitError, gasLimitLoading } = useGasLimit(safeTx)
+  const { gasLimit, gasLimitError, gasLimitLoading, isUnderSigned } = useGasLimit(safeTx)
   const [gasPrice, gasPriceError, gasPriceLoading] = useGasPrice()
   const chain = useCurrentChain()
 
   const loading = gasLimitLoading || gasPriceLoading || !safeTx
-  const hasError = !loading && (!!gasLimitError || !!gasPriceError || !gasLimit || !gasPrice?.maxFeePerGas)
+  const hasError =
+    !loading && !isUnderSigned && (!!gasLimitError || !!gasPriceError || !gasLimit || !gasPrice?.maxFeePerGas)
   const gasFeeFormatted = getTotalFeeFormatted(gasPrice?.maxFeePerGas, gasLimit, chain)
   const nativeSymbol = chain?.nativeCurrency.symbol ?? 'ETH'
 
@@ -26,5 +28,6 @@ export const useFeesPreview = (): FeesPreviewData => {
     gasFee: { label: 'Gas fee', amount: gasFeeFormatted, currency: nativeSymbol },
     loading,
     error: hasError,
+    pending: !loading && isUnderSigned,
   }
 }

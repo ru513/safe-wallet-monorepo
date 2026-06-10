@@ -15,6 +15,7 @@ import {
   incrementByGasMultiplier,
   getGasLimitForZkSync as getGasLimitForZkSyncUtil,
 } from '@safe-global/utils/hooks/coreSDK/gasLimitUtils'
+import { willEncodeEnoughSignatures } from '@safe-global/utils/services/encodeSignatures'
 
 const useGasLimit = (
   safeTx?: SafeTransaction,
@@ -22,6 +23,7 @@ const useGasLimit = (
   gasLimit?: bigint
   gasLimitError?: Error
   gasLimitLoading: boolean
+  isUnderSigned: boolean
 } => {
   const safeSDK = useSafeSDK()
   const web3ReadOnly = useWeb3ReadOnly()
@@ -34,8 +36,20 @@ const useGasLimit = (
   const currentChainId = useChainId()
   const hasSafeTxGas = !!safeTx?.data?.safeTxGas
 
+  // Estimation is doomed (GS020 revert) until the encoded signatures reach the threshold,
+  // so skip the call and surface the state instead of an error.
+  const isUnderSigned = Boolean(
+    safeAddress &&
+      walletAddress &&
+      safeSDK &&
+      web3ReadOnly &&
+      safeTx &&
+      !willEncodeEnoughSignatures(safeTx, isOwner ? walletAddress : undefined, threshold),
+  )
+
   const [gasLimit, gasLimitError, gasLimitLoading] = useAsync<bigint | undefined>(async () => {
     if (!safeAddress || !walletAddress || !safeSDK || !web3ReadOnly || !safeTx) return
+    if (isUnderSigned) return
 
     const encodedSafeTx = getEncodedSafeTx(
       safeSDK,
@@ -79,6 +93,7 @@ const useGasLimit = (
     hasSafeTxGas,
     threshold,
     safe,
+    isUnderSigned,
   ])
 
   useEffect(() => {
@@ -87,7 +102,7 @@ const useGasLimit = (
     }
   }, [gasLimitError])
 
-  return { gasLimit, gasLimitError, gasLimitLoading }
+  return { gasLimit, gasLimitError, gasLimitLoading, isUnderSigned }
 }
 
 export default useGasLimit

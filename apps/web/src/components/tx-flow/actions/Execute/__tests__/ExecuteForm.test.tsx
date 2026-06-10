@@ -160,7 +160,7 @@ describe('ExecuteForm', () => {
   it('shows a gasLimit error', () => {
     jest
       .spyOn(useGasLimit, 'default')
-      .mockReturnValue({ gasLimitError: new Error('Gas limit error'), gasLimitLoading: false })
+      .mockReturnValue({ gasLimitError: new Error('Gas limit error'), gasLimitLoading: false, isUnderSigned: false })
 
     const { getByText } = render(<ExecuteForm {...defaultProps} />)
 
