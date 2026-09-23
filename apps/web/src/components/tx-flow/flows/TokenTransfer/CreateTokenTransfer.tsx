@@ -43,6 +43,7 @@ import {
 import { useLoadFeature } from '@/features/__core__'
 import { useSafeShieldForRecipients } from '@/features/safe-shield/SafeShieldContext'
 import uniq from 'lodash/uniq'
+import { BatchPaymentsFeature } from '@/features/batch-payments'
 
 export const AutocompleteItem = (item: { tokenInfo: Balance['tokenInfo']; balance: string }): ReactElement => (
   <div className="flex items-center gap-2">
@@ -68,6 +69,7 @@ export type CreateTokenTransferProps = {
 
 const CreateTokenTransfer = ({ txNonce }: CreateTokenTransferProps): ReactElement => {
   const { NoFeeCampaignTransactionCard } = useLoadFeature(NoFeeCampaignFeature)
+  const { BatchPaymentsButton, $isReady: batchPaymentsReady } = useLoadFeature(BatchPaymentsFeature)
   const disableSpendingLimit = txNonce !== undefined
   const [csvAirdropModalOpen, setCsvAirdropModalOpen] = useState<boolean>(false)
   const [maxRecipientsInfo, setMaxRecipientsInfo] = useState<boolean>(false)
@@ -173,6 +175,7 @@ const CreateTokenTransfer = ({ txNonce }: CreateTokenTransferProps): ReactElemen
       <FormProvider {...formMethods}>
         <form onSubmit={handleSubmit(onNext)} className={commonCss.form}>
           <div className="flex flex-col gap-6">
+            {canCreateStandardTx && <BatchPaymentsButton txNonce={txNonce} />}
             <div className="flex flex-col gap-16">
               {recipientFields.map((field, index) => (
                 <RecipientRow
@@ -222,7 +225,7 @@ const CreateTokenTransfer = ({ txNonce }: CreateTokenTransferProps): ReactElemen
                   </Alert>
                 )}
 
-                {canAddMoreRecipients && maxRecipientsInfo && !!csvAirdropAppUrl && (
+                {canAddMoreRecipients && maxRecipientsInfo && !!csvAirdropAppUrl && !batchPaymentsReady && (
                   <Alert data-testid="csv-airdrop-hint" variant="info">
                     <AlertSeverityIcon variant="info" />
                     <AlertDescription>
@@ -246,12 +249,14 @@ const CreateTokenTransfer = ({ txNonce }: CreateTokenTransferProps): ReactElemen
                     <AlertSeverityIcon variant="warning" />
                     <AlertDescription>
                       No more recipients can be added.
-                      {!!csvAirdropAppUrl && (
-                        <>
-                          <br />
-                          Please use <CsvAirdropLink />
-                        </>
-                      )}
+                      {batchPaymentsReady
+                        ? ' Use Import CSV to send a larger batch.'
+                        : !!csvAirdropAppUrl && (
+                            <>
+                              <br />
+                              Please use <CsvAirdropLink />
+                            </>
+                          )}
                     </AlertDescription>
                   </Alert>
                 )}

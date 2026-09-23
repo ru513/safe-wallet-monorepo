@@ -5,7 +5,7 @@ import { TokenType } from '@safe-global/store/gateway/types'
 import { ERC721_IDENTIFIER } from '@safe-global/utils/utils/tokens'
 import { type Erc20Token } from '@safe-global/store/gateway/AUTO_GENERATED/transactions'
 import { multicall } from '../../../../packages/utils/src/utils/multicall'
-import { type BytesLike } from 'ethers'
+import { type AbstractProvider, type BytesLike } from 'ethers'
 
 /**
  * Fetches ERC20 token symbol and decimals from on-chain.
@@ -13,8 +13,8 @@ import { type BytesLike } from 'ethers'
  */
 export const getERC20TokenInfoOnChain = async (
   address: string | string[],
+  web3: AbstractProvider | undefined = getWeb3ReadOnly(),
 ): Promise<Omit<Erc20Token, 'name' | 'logoUri'>[] | undefined> => {
-  const web3 = getWeb3ReadOnly()
   if (!web3) return
 
   let tokenAddresses = Array.isArray(address) ? address : [address]
