@@ -1,4 +1,4 @@
-import * as web3 from '@/hooks/wallets/web3'
+import * as web3 from '@/hooks/wallets/web3ReadOnly'
 import { getERC20TokenInfoOnChain } from '@/utils/tokens'
 import { faker } from '@faker-js/faker'
 import { mockWeb3Provider } from '@/tests/test-utils'
@@ -7,6 +7,17 @@ describe('tokens', () => {
   describe('getERC20TokenInfoOnChain', () => {
     beforeEach(() => {
       jest.clearAllMocks()
+    })
+
+    it('uses an explicitly supplied provider even when the global provider is unavailable', async () => {
+      mockWeb3Provider([
+        { signature: 'decimals()', returnType: 'uint256', returnValue: '6' },
+        { signature: 'symbol()', returnType: 'string', returnValue: 'USDC' },
+      ])
+      const provider = web3.getWeb3ReadOnly()
+      jest.spyOn(web3, 'getWeb3ReadOnly').mockReturnValue(undefined)
+      const result = await getERC20TokenInfoOnChain(faker.finance.ethereumAddress(), provider)
+      expect(result?.[0]).toMatchObject({ symbol: 'USDC', decimals: 6 })
     })
 
     it('should return undefined if there is no provider', async () => {

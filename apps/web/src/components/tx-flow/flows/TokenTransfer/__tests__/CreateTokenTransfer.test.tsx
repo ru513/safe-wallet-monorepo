@@ -80,6 +80,18 @@ describe('CreateTokenTransfer', () => {
     expect(getAllByText('Recipient address')[0]).toBeInTheDocument()
   })
 
+  it('offers native CSV import when the chain flag is enabled', async () => {
+    jest.spyOn(chainHooks, 'useHasFeature').mockImplementation((feature) => feature === FEATURES.BATCH_PAYMENTS)
+    const { findByRole } = renderCreateTokenTransfer()
+    expect(await findByRole('button', { name: 'Import CSV' })).toBeInTheDocument()
+  })
+
+  it('keeps native CSV import hidden when its chain flag is disabled', () => {
+    jest.spyOn(chainHooks, 'useHasFeature').mockImplementation((feature) => feature === FEATURES.MASS_PAYOUTS)
+    const { queryByRole } = renderCreateTokenTransfer()
+    expect(queryByRole('button', { name: 'Import CSV' })).not.toBeInTheDocument()
+  })
+
   it('should display a type selection if a spending limit token is selected', () => {
     jest
       .spyOn(tokenUtils, 'useTokenAmount')
