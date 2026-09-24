@@ -19,16 +19,53 @@ describe('parsePaymentCsv', () => {
     })
   })
 
+  it('accepts the original five-column template with empty fungible token IDs', () => {
+    const result = parsePaymentCsv(
+      `token_type,token_address,receiver,amount,id\nnative,,${recipient},1,\nerc20,${recipient},${recipient},2,`,
+      'eth',
+    )
+    expect(result.issues).toEqual([])
+    expect(result.rows).toHaveLength(2)
+  })
+
+  it.each(['\n', '\r\n', '\r'])('reports physical rows after blank and quoted multiline records with %j', (newline) => {
+    const csv = [header, '', `,"${newline}${recipient}",1`, '', `,${recipient},bad`].join(newline)
+    const result = parsePaymentCsv(csv, 'eth')
+    expect(result.rows).toEqual([])
+    expect(result.issues).toEqual([{ row: 6, message: expect.stringContaining('amount') }])
+    expect(parsePaymentCsv([header, '', `,${recipient},1`].join(newline), 'eth').rows[0].row).toBe(3)
+  })
+
+  it.each(['erc721', 'erc1155', 'nft'])('rejects %s in the original template', (type) => {
+    expect(
+      parsePaymentCsv(`token_type,token_address,receiver,amount,id\n${type},${recipient},${recipient},1,42`, 'eth')
+        .rows,
+    ).toEqual([])
+  })
+
+  it.each(['memo', 'decimals'])('rejects unsupported column %s', (column) => {
+    expect(parsePaymentCsv(`${header},${column}\n,${recipient},1,`, 'eth').issues.length).toBeGreaterThan(0)
+  })
+
+  it('does not treat the original id column as a payment amount', () => {
+    const result = parsePaymentCsv(`token_address,receiver,id\n,${recipient},`, 'eth')
+    expect(result.rows).toEqual([])
+    expect(result.issues).toContainEqual({
+      message: 'Required headers: token_address, receiver and amount (or value).',
+    })
+  })
+
   it.each([
     ['missing recipient', `${header}\n,,1`],
     ['missing header', `receiver,amount\n${recipient},1`],
     ['duplicate header', `token_address,receiver,amount,amount\n,${recipient},1,2`],
     ['extra column', `${header}\n,${recipient},1,2`],
     ['missing column', `${header}\n,${recipient}`],
-    ['unknown column', `token_address,receiver,amount,id\n,${recipient},1,1`],
+    ['nonempty NFT id', `token_address,receiver,amount,id\n,${recipient},1,1`],
     ['wrong prefix', `${header}\n,gno:${recipient},1`],
     ['malformed prefix', `${header}\n,eth:eth:${recipient},1`],
     ['scientific notation', `${header}\n,${recipient},1e3`],
+    ['spreadsheet formula', `${header}\n,${recipient},=1+1`],
     ['negative amount', `${header}\n,${recipient},-1`],
     ['nonfinite amount', `${header}\n,${recipient},Infinity`],
     ['bad token', `${header}\n,${recipient},1\nnot-a-token,${recipient},1`],

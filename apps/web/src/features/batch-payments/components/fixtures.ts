@@ -4,6 +4,7 @@ import type { BatchPaymentsData } from '../types'
 export const exampleBatch: BatchPaymentsData = {
   csv: 'token_address,receiver,amount\n,0x1234567890123456789012345678901234567890,0.1',
   chainId: '1',
+  chainName: 'Ethereum',
   safeAddress: '0x1111111111111111111111111111111111111111',
   recipients: [
     {

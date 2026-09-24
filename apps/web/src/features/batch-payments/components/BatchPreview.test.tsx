@@ -10,6 +10,8 @@ describe('BatchPreview', () => {
       duplicateRows: [3],
     }
     render(<BatchPreview batch={batch} />)
+    expect(screen.getByText(batch.safeAddress)).toBeInTheDocument()
+    expect(screen.getByText(/chain ID 1/)).toBeInTheDocument()
     expect(screen.getByText('Page 1 of 2')).toBeInTheDocument()
     expect(screen.getByText(/Repeated payments on rows 3/)).toBeInTheDocument()
     expect(screen.getAllByRole('row')).toHaveLength(21)

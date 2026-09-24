@@ -93,6 +93,19 @@ describe('validatePaymentCsv', () => {
     expect(result.issues.map((issue) => issue.row)).toEqual([2, 3, 4])
   })
 
+  it.each([
+    ['malformed recipient', 'not-an-address', '1', /valid nonzero address/],
+    ['zero recipient', ZeroAddress, '1', /valid nonzero address/],
+    ['zero native amount', recipient, '0', /positive/],
+    ['excess native precision', recipient, '0.0000000000000000001', /18 decimal places/],
+  ])('rejects the entire batch for %s and identifies its physical row', async (_, address, amount, message) => {
+    const resolver = makeResolver()
+    resolver.resolveName = jest.fn().mockResolvedValue(null)
+    const result = await validatePaymentCsv(`${header}\n,${recipient},1\n\n,${address},${amount}`, context, resolver)
+    expect(result.batch).toBeUndefined()
+    expect(result.issues).toEqual([{ row: 4, message: expect.stringMatching(message) }])
+  })
+
   it('bounds concurrent token lookups for large batches', async () => {
     let active = 0
     let maximum = 0
