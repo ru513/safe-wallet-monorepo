@@ -13,7 +13,7 @@ export function usePaymentResolver() {
   return useCallback(async () => {
     if (!provider || !chain || !safeLoaded || safe.chainId !== chain.chainId)
       throw new Error('Safe and network must finish loading before importing.')
-    const context = { chainId: chain.chainId, safeAddress, shortName: chain.shortName }
+    const context = { chainId: chain.chainId, chainName: chain.chainName, safeAddress, shortName: chain.shortName }
     const resolver = await createPaymentResolver(provider, {
       ...context,
       nativeSymbol: chain.nativeCurrency.symbol,

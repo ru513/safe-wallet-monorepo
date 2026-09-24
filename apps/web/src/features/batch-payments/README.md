@@ -19,12 +19,13 @@ token_address,receiver,amount
 The second row is native currency; the third is an example using Ethereum USDC. Verify the network, addresses and amounts before sending.
 
 - `value` is accepted as an alias for `amount`.
-- Optional `token_type` accepts `native` and `erc20`. Unsupported types/headers are rejected.
+- Optional `token_type` accepts `native` and `erc20`. The original five-column `token_type,token_address,receiver,amount,id` template is accepted with empty `id` cells; nonempty IDs and NFT types are rejected. Unsupported headers are rejected.
 - Matching chain prefixes and recipient names resolvable by the current network's provider are supported when domain lookup is enabled.
 - Amounts remain strings until exact integer conversion. Excess decimals, zero/negative amounts and uint256 overflow are rejected.
-- Every nonblank row must validate. Errors block the entire batch; no partial submission or rounding.
-- Repeated payments are retained with a warning. Review shows exact per-token totals, token addresses, resolved recipients, and 20 payments per page.
+- Every nonblank row must validate. Errors use physical CSV line numbers, including blank and quoted multiline records. Errors block the entire batch; no partial submission or rounding.
+- Repeated payments are retained with a warning. Preview and review show the funding Safe, network, exact per-token totals, token addresses, resolved recipients, and 20 payments per page. Continuing requires confirming the Safe/network and checking queued/executed payments. This is a user confirmation, not automatic detection of previously submitted files; editing or revalidating clears it.
 - Limits: 500 payments and 1 MB. These are input limits, not guarantees that a batch fits a chain's gas or simulation limits. Oversized execution must be handled through the existing review checks; automatic splitting is not implemented.
+- Shared Safe Shield recipient and activity scans process up to five requests concurrently per scan. A failed recipient scan remains an error, never a successful partial result.
 - Balances are checked in aggregate on-chain during import and again before transaction construction. Metadata is resolved even for tokens missing from indexed/trusted balances.
 - Switching Safe/network unmounts the entire transaction flow. Editing input invalidates its preview; stale asynchronous results are ignored. Names are pinned to the reviewed addresses for transaction construction.
 
@@ -37,6 +38,8 @@ No original app source was copied verbatim into this feature. Preserve upstream'
 ## Verification and review
 
 Run `yarn verify:changed:web` and `yarn verify:web` using Node 22.12 or newer. The new flag is in `packages/utils`; also run that package's type, lint, and chain utility tests. Stories live under **Features / Batch payments** for import, errors, preview, pagination and flow entry.
+
+The review integration tests retain the real Wallet review, Safe Shield context and risk confirmation, with MSW preview responses; wallet/SDK and analysis-result boundaries remain mocked. They cover required risk acknowledgement and failed preview handling, not live execution.
 
 The new tests cover parsing, precision, all-or-nothing imports, aggregate overspending, duplicates, bounded token lookups, RPC failures, missing indexed token metadata, permission/feature gates, input races, Safe/network changes, replacement nonces and preservation of the prepared transaction for signing. Existing Send and metadata-helper consumers are regression surfaces.
 

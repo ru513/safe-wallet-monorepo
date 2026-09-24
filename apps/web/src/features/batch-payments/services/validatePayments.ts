@@ -29,7 +29,7 @@ export const getPaymentTotals = (payments: Payment[]): PaymentTotal[] => {
 
 export const validatePaymentCsv = async (
   csv: string,
-  context: { chainId: string; safeAddress: string; shortName: string },
+  context: { chainId: string; chainName?: string; safeAddress: string; shortName: string },
   resolver: PaymentResolver,
 ): Promise<{ batch?: BatchPaymentsData; issues: ImportIssue[] }> => {
   const { rows, issues } = parsePaymentCsv(csv, context.shortName)
@@ -92,6 +92,7 @@ export const validatePaymentCsv = async (
     batch: {
       csv,
       chainId: context.chainId,
+      chainName: context.chainName,
       safeAddress: context.safeAddress,
       recipients: payments,
       totals,

@@ -50,26 +50,28 @@ export const useAddressActivity = (
 
     const activityResults: AddressActivityResult = {}
 
-    await Promise.all(
-      addressesToFetch.map(async (address) => {
-        if (!address) return
+    for (let offset = 0; offset < addressesToFetch.length; offset += 5) {
+      await Promise.all(
+        addressesToFetch.slice(offset, offset + 5).map(async (address) => {
+          if (!address) return
 
-        try {
-          if (!isAddress(address)) {
-            throw new Error('Invalid Ethereum address')
+          try {
+            if (!isAddress(address)) {
+              throw new Error('Invalid Ethereum address')
+            }
+
+            // Get transaction count using eth_getTransactionCount
+            const txCount = await web3ReadOnly.getTransactionCount(address, 'latest')
+
+            // Only add result if the address has low activity
+            activityResults[address] = txCount < ACTIVITY_THRESHOLD_LOW ? LowActivityAnalysisResult : undefined
+          } catch (err) {
+            console.error(`Address activity analysis error for ${address}:`, err)
+            throw err
           }
-
-          // Get transaction count using eth_getTransactionCount
-          const txCount = await web3ReadOnly.getTransactionCount(address, 'latest')
-
-          // Only add result if the address has low activity
-          activityResults[address] = txCount < ACTIVITY_THRESHOLD_LOW ? LowActivityAnalysisResult : undefined
-        } catch (err) {
-          console.error(`Address activity analysis error for ${address}:`, err)
-          throw err
-        }
-      }),
-    )
+        }),
+      )
+    }
 
     return activityResults
   }, [addressesToFetch, web3ReadOnly])
