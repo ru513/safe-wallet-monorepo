@@ -1,6 +1,8 @@
 import { act, fireEvent, render, screen, waitFor } from '@/tests/test-utils'
 import { BatchImport } from './BatchImport'
 import { exampleBatch } from './fixtures'
+import { validatePaymentCsv } from '../services/validatePayments'
+import { parseUnits } from 'ethers'
 
 describe('BatchImport', () => {
   it('requires validation and displays all payments before continuing', async () => {
@@ -13,6 +15,8 @@ describe('BatchImport', () => {
     await screen.findByText('Review transaction')
     expect(screen.getByText('1 payment to 1 recipient')).toBeInTheDocument()
     expect(onContinue).not.toHaveBeenCalled()
+    expect(screen.getByText('Review transaction')).toBeDisabled()
+    fireEvent.click(screen.getByRole('checkbox', { name: /I checked the Safe/ }))
     fireEvent.click(screen.getByText('Review transaction'))
     expect(onContinue).toHaveBeenCalledWith(exampleBatch)
   })
@@ -42,8 +46,12 @@ describe('BatchImport', () => {
     )
     fireEvent.click(screen.getByText('Validate CSV'))
     await screen.findByText('Review transaction')
+    fireEvent.click(screen.getByRole('checkbox', { name: /I checked the Safe/ }))
     fireEvent.change(screen.getByLabelText('Payment CSV'), { target: { value: 'invalid' } })
     expect(screen.queryByText('Review transaction')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByText('Validate CSV'))
+    expect(await screen.findByText('Review transaction')).toBeDisabled()
+    expect(screen.getByRole('checkbox', { name: /I checked the Safe/ })).not.toBeChecked()
   })
 
   it('blocks partial results, shows row errors and allows retry', async () => {
@@ -82,5 +90,34 @@ describe('BatchImport', () => {
     fireEvent.change(screen.getByLabelText('Upload CSV'), { target: { files: [huge] } })
     await screen.findByText('CSV must be 1 MB or smaller.')
     expect(screen.getByLabelText('Payment CSV')).toHaveValue('')
+  })
+
+  it('rejects an uploaded malformed CSV through the real validator and allows correction', async () => {
+    const onContinue = jest.fn()
+    const validate = (csv: string) =>
+      validatePaymentCsv(
+        csv,
+        { ...exampleBatch, shortName: 'eth' },
+        {
+          getToken: async () => ({ decimals: 18, symbol: 'ETH', balance: parseUnits('1') }),
+          resolveName: async () => null,
+        },
+      )
+    render(<BatchImport validate={validate} onContinue={onContinue} />)
+    const malformed = `${exampleBatch.csv}\n\n,${exampleBatch.recipients[0].recipient},=1+1`
+    const file = new File([malformed], 'bad-payments.csv', { type: 'text/csv' })
+    Object.defineProperty(file, 'text', { value: () => Promise.resolve(malformed) })
+    fireEvent.change(screen.getByLabelText('Upload CSV'), { target: { files: [file] } })
+    await waitFor(() => expect(screen.getByLabelText('Payment CSV')).toHaveValue(malformed))
+    fireEvent.click(screen.getByText('Validate CSV'))
+    await screen.findByText(/Row 4:.*amount/i)
+    expect(screen.queryByText('Review transaction')).not.toBeInTheDocument()
+    expect(onContinue).not.toHaveBeenCalled()
+    fireEvent.change(screen.getByLabelText('Payment CSV'), { target: { value: exampleBatch.csv } })
+    fireEvent.click(screen.getByText('Validate CSV'))
+    expect(await screen.findByText('Review transaction')).toBeDisabled()
+    fireEvent.click(screen.getByRole('checkbox', { name: /I checked the Safe/ }))
+    fireEvent.click(screen.getByText('Review transaction'))
+    expect(onContinue).toHaveBeenCalledWith(expect.objectContaining({ csv: exampleBatch.csv }))
   })
 })

@@ -357,4 +357,42 @@ describe('useFetchMultiRecipientAnalysis', () => {
     expect(error).toBeInstanceOf(Error)
     expect(error?.message).toContain('Failed to fetch recipient analysis')
   })
+  it('bounds a large recipient list to five concurrent requests without dropping results', async () => {
+    const recipients = Array.from({ length: 23 }, () => faker.finance.ethereumAddress())
+    let active = 0
+    let maximum = 0
+    fetchRecipientAnalysisMock.mockImplementation(async () => {
+      active++
+      maximum = Math.max(maximum, active)
+      await new Promise((resolve) => setTimeout(resolve, 1))
+      active--
+      return { data: { RECIPIENT_INTERACTION: [] }, isError: false }
+    })
+    const { result } = renderHook(() =>
+      useFetchMultiRecipientAnalysis({
+        safeAddress: mockSafeAddress,
+        chainId: mockChainId,
+        recipientAddresses: recipients,
+      }),
+    )
+    await waitFor(() => expect(Object.keys(result.current[0] || {})).toHaveLength(23))
+    expect(maximum).toBe(5)
+    expect(fetchRecipientAnalysisMock).toHaveBeenCalledTimes(23)
+  })
+
+  it('reports an incomplete scan and stops scheduling later requests after a failure', async () => {
+    const recipients = Array.from({ length: 13 }, () => faker.finance.ethereumAddress())
+    fetchRecipientAnalysisMock.mockResolvedValueOnce({ data: undefined, isError: true, status: '429' })
+    const { result } = renderHook(() =>
+      useFetchMultiRecipientAnalysis({
+        safeAddress: mockSafeAddress,
+        chainId: mockChainId,
+        recipientAddresses: recipients,
+      }),
+    )
+    await waitFor(() => expect(result.current[1]).toBeDefined())
+    expect(result.current[0]).toBeUndefined()
+    expect(result.current[2]).toBe(false)
+    expect(fetchRecipientAnalysisMock).toHaveBeenCalledTimes(5)
+  })
 })

@@ -215,4 +215,21 @@ describe('useAddressActivity', () => {
     // Old address should not be in results anymore
     expect(results2?.[address1]).toBeUndefined()
   })
+  it('bounds activity checks to five concurrent requests and checks every address', async () => {
+    const addresses = Array.from({ length: 23 }, () => faker.finance.ethereumAddress())
+    let active = 0
+    let maximum = 0
+    const getTransactionCount = jest.fn(async () => {
+      active++
+      maximum = Math.max(maximum, active)
+      await new Promise((resolve) => setTimeout(resolve, 1))
+      active--
+      return 0
+    })
+    const provider = { getTransactionCount } as unknown as JsonRpcProvider
+    const { result } = renderHook(() => useAddressActivity(addresses, provider))
+    await waitFor(() => expect(Object.keys(result.current[0] || {})).toHaveLength(23))
+    expect(maximum).toBe(5)
+    expect(getTransactionCount).toHaveBeenCalledTimes(23)
+  })
 })
