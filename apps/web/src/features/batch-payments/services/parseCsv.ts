@@ -4,7 +4,7 @@ import type { ImportIssue, PaymentRow } from '../types'
 
 export const MAX_PAYMENTS = 500
 export const MAX_CSV_BYTES = 1024 * 1024
-const HEADERS = ['token_type', 'token_address', 'receiver', 'amount', 'value']
+const HEADERS = ['token_type', 'token_address', 'receiver', 'amount', 'value', 'id']
 
 const normalizeRecipient = (value: string, shortName: string): string => {
   if (!value.includes(':')) return value
@@ -19,6 +19,7 @@ const parseRow = (cells: string[], headers: string[], row: number, shortName: st
   const tokenType = values.token_type?.toLowerCase()
   if (tokenType && !['native', 'erc20'].includes(tokenType))
     throw new Error('Only native tokens and ERC20s are supported.')
+  if (values.id) throw new Error('NFT token IDs are not supported. Leave id blank for native tokens and ERC20s.')
   if (!values.receiver) throw new Error('Recipient is required.')
   if (cells.some((cell) => cell.length > 256)) throw new Error('A value is too long (maximum 256 characters).')
   const tokenAddress = values.token_address || ZeroAddress
@@ -40,15 +41,25 @@ const parseRow = (cells: string[], headers: string[], row: number, shortName: st
 export const parsePaymentCsv = (csv: string, shortName: string): { rows: PaymentRow[]; issues: ImportIssue[] } => {
   if (new TextEncoder().encode(csv).length > MAX_CSV_BYTES)
     return { rows: [], issues: [{ message: 'CSV must be 1 MB or smaller.' }] }
-  const parsed = parse<string[]>(csv.replace(/^\uFEFF/, ''), { skipEmptyLines: 'greedy', delimiter: ',' })
-  const [rawHeaders = [], ...data] = parsed.data
-  const headers = rawHeaders.map((header) => header.trim())
-  const issues: ImportIssue[] = parsed.errors.map((error) => ({
-    row: error.row === undefined ? undefined : error.row + 1,
-    message: error.message,
-  }))
+  const source = csv.replace(/^\uFEFF/, '')
+  const records: { cells: string[]; row: number }[] = []
+  const issues: ImportIssue[] = []
+  let offset = 0
+  let line = 1
+  parse<string[]>(source, {
+    delimiter: ',',
+    step: ({ data: cells, errors, meta }) => {
+      const row = line
+      line += (source.slice(offset, meta.cursor).match(/\r\n|\r|\n/g) || []).length
+      offset = meta.cursor
+      issues.push(...errors.map((error) => ({ row, message: error.message })))
+      if (cells.some((cell) => cell.trim())) records.push({ cells, row })
+    },
+  })
+  const [header, ...data] = records
+  const headers = (header?.cells || []).map((cell) => cell.trim())
   if (new Set(headers).size !== headers.length || headers.some((header) => !HEADERS.includes(header))) {
-    issues.push({ message: 'Headers must be unique and use token_type, token_address, receiver, amount or value.' })
+    issues.push({ message: 'Headers must be unique and use token_type, token_address, receiver, amount, value or id.' })
   }
   if (
     !headers.includes('receiver') ||
@@ -60,11 +71,11 @@ export const parsePaymentCsv = (csv: string, shortName: string): { rows: Payment
   if (!data.length || data.length > MAX_PAYMENTS)
     issues.push({ message: `Include between 1 and ${MAX_PAYMENTS} payments.` })
   if (issues.length) return { rows: [], issues }
-  const rows = data.flatMap((cells, index) => {
+  const rows = data.flatMap(({ cells, row }) => {
     try {
-      return [parseRow(cells, headers, index + 2, shortName)]
+      return [parseRow(cells, headers, row, shortName)]
     } catch (error) {
-      issues.push({ row: index + 2, message: (error as Error).message })
+      issues.push({ row, message: (error as Error).message })
       return []
     }
   })

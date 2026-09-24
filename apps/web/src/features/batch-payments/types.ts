@@ -22,6 +22,7 @@ export type PaymentTotal = {
 export type BatchPaymentsData = {
   csv: string
   chainId: string
+  chainName?: string
   safeAddress: string
   recipients: Payment[]
   totals: PaymentTotal[]

@@ -14,6 +14,14 @@ export function BatchPreview({ batch }: { batch: BatchPaymentsData }) {
   const recipientCount = new Set(batch.recipients.map((payment) => payment.recipient)).size
   return (
     <div className="flex flex-col gap-4">
+      <dl className="rounded-md border border-border p-3 text-sm">
+        <dt className="text-muted-foreground">Funding Safe</dt>
+        <dd className="break-all font-medium">{batch.safeAddress}</dd>
+        <dt className="mt-2 text-muted-foreground">Network</dt>
+        <dd className="font-medium">
+          {batch.chainName || 'Chain'} (chain ID {batch.chainId})
+        </dd>
+      </dl>
       <h3 className="font-semibold">
         {batch.recipients.length} {batch.recipients.length === 1 ? 'payment' : 'payments'} to {recipientCount}{' '}
         {recipientCount === 1 ? 'recipient' : 'recipients'}

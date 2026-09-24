@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Field, FieldLabel, FieldDescription } from '@/components/ui/field'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Spinner } from '@/components/ui/spinner'
 import { BatchPreview } from './BatchPreview'
 import { MAX_CSV_BYTES, MAX_PAYMENTS } from '../services/parseCsv'
@@ -22,6 +23,7 @@ export function BatchImport({ initialCsv = '', disabled, validate, onContinue }:
   const [csv, setCsv] = useState(initialCsv)
   const [batch, setBatch] = useState<BatchPaymentsData>()
   const [issues, setIssues] = useState<ImportIssue[]>([])
+  const [confirmed, setConfirmed] = useState(false)
   const [busy, setBusy] = useState(false)
   const revision = useRef(0)
   useEffect(
@@ -35,6 +37,7 @@ export function BatchImport({ initialCsv = '', disabled, validate, onContinue }:
     revision.current += 1
     setCsv(value)
     setBatch(undefined)
+    setConfirmed(false)
     setIssues([])
     setBusy(false)
   }
@@ -63,6 +66,7 @@ export function BatchImport({ initialCsv = '', disabled, validate, onContinue }:
     const request = ++revision.current
     setBusy(true)
     setBatch(undefined)
+    setConfirmed(false)
     setIssues([])
     try {
       const result = await validate(csv)
@@ -135,7 +139,27 @@ export function BatchImport({ initialCsv = '', disabled, validate, onContinue }:
           </AlertDescription>
         </Alert>
       )}
-      {batch && <BatchPreview key={batch.csv} batch={batch} />}
+      {batch && (
+        <>
+          <BatchPreview key={batch.csv} batch={batch} />
+          <Field orientation="horizontal">
+            <Checkbox
+              id="batch-confirm"
+              aria-labelledby="batch-confirm-label"
+              checked={confirmed}
+              onCheckedChange={(checked) => setConfirmed(checked === true)}
+            />
+            <div>
+              <FieldLabel id="batch-confirm-label" htmlFor="batch-confirm">
+                I checked the Safe, network and payment history
+              </FieldLabel>
+              <FieldDescription>
+                Check queued and executed transactions. Importing this file again can pay recipients twice.
+              </FieldDescription>
+            </div>
+          </Field>
+        </>
+      )}
       <div className="flex justify-end gap-2">
         <Button
           type="button"
@@ -153,7 +177,11 @@ export function BatchImport({ initialCsv = '', disabled, validate, onContinue }:
           )}
         </Button>
         {batch && (
-          <Button type="button" disabled={disabled || busy} onClick={() => onContinue(batch)}>
+          <Button
+            type="button"
+            disabled={disabled || busy || !confirmed}
+            onClick={() => confirmed && onContinue(batch)}
+          >
             Review transaction
           </Button>
         )}

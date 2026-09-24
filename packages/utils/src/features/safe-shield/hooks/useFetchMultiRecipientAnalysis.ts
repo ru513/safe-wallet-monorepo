@@ -24,23 +24,21 @@ export function useFetchMultiRecipientAnalysis({
       return
     }
 
-    return Promise.all(
-      recipientAddresses.map(async (recipientAddress) => {
-        const result = await fetchRecipientAnalysis({ chainId, safeAddress, recipientAddress })
-        if (result.isError) {
-          throw new Error(result.status)
-        }
-        if (!result.data) {
-          throw new Error('No data returned')
-        }
-        return [recipientAddress, result.data] as const
-      }),
-    )
-      .then((results) => {
-        return results.reduce((acc, [address, result]) => ({ ...acc, [address]: result }), {})
-      })
-      .catch((err) => {
-        throw new Error(`Failed to fetch recipient analysis: ${err.message}`)
-      })
+    const results: RecipientAnalysisResults = {}
+    try {
+      for (let offset = 0; offset < recipientAddresses.length; offset += 5) {
+        await Promise.all(
+          recipientAddresses.slice(offset, offset + 5).map(async (recipientAddress) => {
+            const result = await fetchRecipientAnalysis({ chainId, safeAddress, recipientAddress })
+            if (result.isError) throw new Error(result.status)
+            if (!result.data) throw new Error('No data returned')
+            results[recipientAddress] = result.data as RecipientAnalysisResults[string]
+          }),
+        )
+      }
+      return results
+    } catch (err) {
+      throw new Error(`Failed to fetch recipient analysis: ${err instanceof Error ? err.message : String(err)}`)
+    }
   }, [recipientAddresses, chainId, safeAddress, fetchRecipientAnalysis])
 }
