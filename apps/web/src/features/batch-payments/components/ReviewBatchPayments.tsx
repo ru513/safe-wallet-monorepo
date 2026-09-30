@@ -1,5 +1,6 @@
 import { useContext, useEffect, useMemo, useState, type PropsWithChildren } from 'react'
 import { SafeTxContext } from '@/components/tx-flow/SafeTxProvider'
+import { useSafeScope } from '@/components/tx-flow/safe-scope/context'
 import { TxFlowContext, type TxFlowContextType } from '@/components/tx-flow/TxFlowProvider'
 import ReviewTransaction from '@/components/tx/ReviewTransactionV2'
 import ReviewTransactionSkeleton from '@/components/tx/ReviewTransactionV2/ReviewTransactionSkeleton'
@@ -16,6 +17,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 
 export function ReviewBatchPayments({ children, onSubmit }: PropsWithChildren<{ onSubmit: () => void }>) {
+  const scope = useSafeScope()
   const { data: batch, txNonce } = useContext(TxFlowContext) as TxFlowContextType<BatchPaymentsData>
   const { safeTx, safeTxError, setSafeTx, setSafeTxError, setNonce } = useContext(SafeTxContext)
   const [attempt, setAttempt] = useState(0)
@@ -38,7 +40,7 @@ export function ReviewBatchPayments({ children, onSubmit }: PropsWithChildren<{ 
         throw new Error('Safe or network changed. Import the CSV again.')
       await revalidateBatch(batch, resolver)
       if (cancelled) return
-      const transaction = await createMultiSendCallOnlyTx(buildPaymentCalls(batch.recipients))
+      const transaction = await createMultiSendCallOnlyTx(buildPaymentCalls(batch.recipients), scope)
       if (!cancelled) {
         setSafeTx(transaction)
         setPrepared(true)
@@ -50,7 +52,7 @@ export function ReviewBatchPayments({ children, onSubmit }: PropsWithChildren<{ 
     return () => {
       cancelled = true
     }
-  }, [batch, txNonce, getResolver, canCreate, setSafeTx, setSafeTxError, setNonce, attempt])
+  }, [batch, txNonce, getResolver, canCreate, setSafeTx, setSafeTxError, setNonce, attempt, scope])
 
   if (safeTxError)
     return (
