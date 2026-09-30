@@ -1,6 +1,8 @@
 import { useContext, type PropsWithChildren } from 'react'
 import { act, render, waitFor } from '@/tests/test-utils'
 import { SafeTxContext } from '@/components/tx-flow/SafeTxProvider'
+import { SafeScopeContext } from '@/components/tx-flow/safe-scope/context'
+import type { SafeScope } from '@/components/tx-flow/safe-scope/types'
 import { initialContext, TxFlowContext } from '@/components/tx-flow/TxFlowProvider'
 import { createMultiSendCallOnlyTx } from '@/services/tx/tx-sender'
 import { safeTxBuilder } from '@/tests/builders/safeTx'
@@ -56,9 +58,10 @@ describe('ReviewBatchPayments', () => {
       </Wrapper>,
     )
     await waitFor(() => expect(setSafeTx).toHaveBeenLastCalledWith(transaction))
-    expect(createMultiSendCallOnlyTx).toHaveBeenCalledWith([
-      { to: exampleBatch.recipients[0].recipient, value: '100000000000000000', data: '0x' },
-    ])
+    expect(createMultiSendCallOnlyTx).toHaveBeenCalledWith(
+      [{ to: exampleBatch.recipients[0].recipient, value: '100000000000000000', data: '0x' }],
+      undefined,
+    )
     expect(setNonce).toHaveBeenCalledWith(7)
     setSafeTx.mockClear()
     unmount()
@@ -78,6 +81,25 @@ describe('ReviewBatchPayments', () => {
       ),
     )
     expect(createMultiSendCallOnlyTx).not.toHaveBeenCalled()
+  })
+
+  it('builds with the selected Safe scope instead of the global SDK', async () => {
+    const scope: SafeScope = {
+      chainId: context.chainId,
+      safeAddress: context.safeAddress,
+      scopeKey: `1:${context.safeAddress}`,
+      safeLoaded: true,
+      safeLoading: false,
+    }
+    render(
+      <SafeScopeContext.Provider value={{ scope, setScope: jest.fn(), clearScope: jest.fn() }}>
+        <Wrapper>
+          <ReviewBatchPayments onSubmit={jest.fn()} />
+        </Wrapper>
+      </SafeScopeContext.Provider>,
+    )
+    await waitFor(() => expect(setSafeTx).toHaveBeenLastCalledWith(transaction))
+    expect(createMultiSendCallOnlyTx).toHaveBeenCalledWith(expect.any(Array), scope)
   })
 
   it('blocks proposal without transaction permission', async () => {

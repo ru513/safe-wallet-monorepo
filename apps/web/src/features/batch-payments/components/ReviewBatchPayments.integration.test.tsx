@@ -5,8 +5,7 @@ import { initialContext, TxFlowContext } from '@/components/tx-flow/TxFlowProvid
 import { SlotProvider } from '@/components/tx-flow/slots'
 import { RiskConfirmation } from '@/components/tx-flow/features/RiskConfirmation'
 import { SafeShieldProvider } from '@/features/safe-shield/SafeShieldContext'
-// eslint-disable-next-line no-restricted-imports -- Safe Shield does not expose a feature barrel.
-import { useRecipientAnalysis } from '@/features/safe-shield/hooks'
+import type { useRecipientAnalysis as UseRecipientAnalysis } from '@/features/safe-shield'
 import { usePaymentResolver } from '../hooks/usePaymentResolver'
 import { getAndValidateSafeSDK } from '@/services/tx/tx-sender/sdk'
 import useSafeInfo from '@/hooks/useSafeInfo'
@@ -24,6 +23,8 @@ jest.mock('../hooks/usePaymentResolver')
 jest.mock('@/services/tx/tx-sender/sdk')
 jest.mock('@/permissions/hooks/useHasPermission', () => ({ useHasPermission: () => true }))
 jest.mock('@/hooks/useSafeInfo')
+const mockUseSafeProAccess = jest.fn(() => ({ hasProFeatures: true, isSafePro: true, isLoading: false }))
+jest.mock('@/features/spaces', () => ({ useSafeProAccess: () => mockUseSafeProAccess() }))
 jest.mock('@/hooks/useIsTrustedSafe', () => ({ __esModule: true, default: () => true }))
 jest.mock('@/components/common/CheckWallet', () => ({
   __esModule: true,
@@ -52,6 +53,9 @@ const batch = {
   duplicateRows: [3],
 }
 batch.totals = getPaymentTotals(batch.recipients)
+const { useRecipientAnalysis } = jest.requireMock('@/features/safe-shield/hooks') as {
+  useRecipientAnalysis: typeof UseRecipientAnalysis
+}
 
 function Wrapper({ children }: PropsWithChildren) {
   const defaults = useContext(SafeTxContext)
@@ -100,33 +104,41 @@ describe('batch review with Wallet review and Safe Shield', () => {
     )
   })
 
-  it('preserves the shared risk gate and passes every payment to the call-only builder', async () => {
-    const onSubmit = jest.fn()
-    render(
-      <Wrapper>
-        <ReviewBatchPayments onSubmit={onSubmit}>
-          <RiskConfirmation />
-        </ReviewBatchPayments>
-      </Wrapper>,
-    )
-    const button = await screen.findByTestId('continue-sign-btn')
-    expect(button).toBeDisabled()
-    fireEvent.click(button)
-    expect(onSubmit).not.toHaveBeenCalled()
-    expect(createTransaction).toHaveBeenCalledWith({
-      transactions: Array.from({ length: 2 }, () => ({
-        to: exampleBatch.recipients[0].recipient,
-        value: exampleBatch.recipients[0].units,
-        data: '0x',
-      })),
-      onlyCalls: true,
-    })
-    await waitFor(() => expect(useRecipientAnalysis).toHaveBeenCalledWith([exampleBatch.recipients[0].recipient]))
-    fireEvent.click(await screen.findByRole('checkbox'))
-    await waitFor(() => expect(screen.getByTestId('continue-sign-btn')).toBeEnabled())
-    fireEvent.click(screen.getByTestId('continue-sign-btn'))
-    expect(onSubmit).toHaveBeenCalledTimes(1)
-  })
+  it.each([true, false])(
+    'preserves the shared risk gate with Pro access %s and builds every payment',
+    async (hasProFeatures) => {
+      mockUseSafeProAccess.mockReturnValue({ hasProFeatures, isSafePro: hasProFeatures, isLoading: false })
+      const onSubmit = jest.fn()
+      render(
+        <Wrapper>
+          <ReviewBatchPayments onSubmit={onSubmit}>
+            <RiskConfirmation />
+          </ReviewBatchPayments>
+        </Wrapper>,
+      )
+      const button = await screen.findByTestId('continue-sign-btn')
+      expect(button).toBeDisabled()
+      fireEvent.click(button)
+      expect(onSubmit).not.toHaveBeenCalled()
+      expect(createTransaction).toHaveBeenCalledWith({
+        transactions: Array.from({ length: 2 }, () => ({
+          to: exampleBatch.recipients[0].recipient,
+          value: exampleBatch.recipients[0].units,
+          data: '0x',
+        })),
+        onlyCalls: true,
+      })
+      await waitFor(() =>
+        expect(useRecipientAnalysis).toHaveBeenCalledWith(
+          hasProFeatures ? [exampleBatch.recipients[0].recipient] : undefined,
+        ),
+      )
+      fireEvent.click(await screen.findByRole('checkbox'))
+      await waitFor(() => expect(screen.getByTestId('continue-sign-btn')).toBeEnabled())
+      fireEvent.click(screen.getByTestId('continue-sign-btn'))
+      expect(onSubmit).toHaveBeenCalledTimes(1)
+    },
+  )
 
   it('blocks progression when the real preview request fails', async () => {
     server.use(
